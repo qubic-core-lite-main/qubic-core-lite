@@ -585,12 +585,15 @@ namespace QPI
 	}
 
 	template <typename T, uint64 L>
-	void Collection<T, L>::cleanupIfNeeded(uint64 removalThresholdPercent)
+	bool Collection<T, L>::cleanupIfNeeded(uint64 removalThresholdPercent)
 	{
 		if (_markRemovalCounter > (removalThresholdPercent * L / 100))
 		{
 			cleanup();
+		    return true;
 		}
+
+	    return false;
 	}
 
 	template <typename T, uint64 L>

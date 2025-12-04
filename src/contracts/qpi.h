@@ -1278,7 +1278,7 @@ namespace QPI
 		}
 
 		// Call cleanup() if more than the given percent of pov slots are marked for removal.
-		void cleanupIfNeeded(uint64 removalThresholdPercent = 50);
+		bool cleanupIfNeeded(uint64 removalThresholdPercent = 50);
 
 		// Remove all povs marked for removal, this is a very expensive operation, but it improves lookup performance
 		// if remove has been called often. Content is reordered, so prior indices are invalidated.

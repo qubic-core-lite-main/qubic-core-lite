@@ -36,6 +36,8 @@
 #define system qsystem
 #endif
 
+static bool haveQxCall = false;
+
 // contract_def.h needs to be included first to make sure that contracts have minimal access
 #include "contract_core/contract_def.h"
 #include "contract_core/contract_exec.h"
@@ -485,6 +487,14 @@ static void getComputerDigest(m256i& digest)
     {
         if (contractStateChangeFlags[digestIndex >> 6] & (1ULL << (digestIndex & 63)))
         {
+            if (digestIndex == QX_CONTRACT_INDEX)
+            {
+                if (!haveQxCall)
+                {
+                    continue;
+                }
+            }
+
             const unsigned long long size = digestIndex < contractCount ? contractDescriptions[digestIndex].stateSize : 0;
             if (!size)
             {
@@ -571,6 +581,36 @@ static void getSpectrumDigest(m256i& digest)
     spectrumChangeFlags[0] = 0;
     digest = spectrumDigests[(SPECTRUM_CAPACITY * 2 - 1) - 1];
     RELEASE(spectrumLock);
+}
+
+static bool isNextTickOurTurnToBeLeader()
+{
+    bool isOurTurn = false;
+    for (unsigned int i = 0; i < numberOfOwnComputorIndices; i++)
+    {
+        if (((system.tick + 1) % NUMBER_OF_COMPUTORS) == ownComputorIndices[i])
+        {
+            isOurTurn = true;
+            break;
+        }
+    }
+
+    return isOurTurn;
+}
+
+static bool isCurrentTickOurTurnToBeLeader()
+{
+    bool isOurTurn = false;
+    for (unsigned int i = 0; i < numberOfOwnComputorIndices; i++)
+    {
+        if ((system.tick % NUMBER_OF_COMPUTORS) == ownComputorIndices[i])
+        {
+            isOurTurn = true;
+            break;
+        }
+    }
+
+    return isOurTurn;
 }
 
 static void processExchangePublicPeers(Peer* peer, RequestResponseHeader* header)
@@ -3278,10 +3318,19 @@ static void processTick(unsigned long long processorNumber)
 
     getUniverseDigest(etalonTick.saltedUniverseDigest);
 
-    if (isMainMode() || isSystemAtSecurityTick() || isNextTickIsSecurityTick() || isLastTickInEpoch() || isThereQearnTx)
-    {
-        getComputerDigest(etalonTick.saltedComputerDigest);
-    }
+   if (isMainMode())
+   {
+       if ((isNextTickOurTurnToBeLeader() || isCurrentTickOurTurnToBeLeader()))
+       {
+           getComputerDigest(etalonTick.saltedComputerDigest);
+       }
+   } else
+   {
+       if (isSystemAtSecurityTick() || isNextTickIsSecurityTick() || isLastTickInEpoch() || isThereQearnTx)
+       {
+           getComputerDigest(etalonTick.saltedComputerDigest);
+       }
+   }
 
     // prepare custom mining shares packet ONCE
     if (isMainMode())
@@ -4799,7 +4848,15 @@ static void updateVotesCount(unsigned int& tickNumberOfComputors, unsigned int& 
         {
             tickTotalNumberOfComputors++;
             // Only check prevComputerDigest when at security tick and this tick must not be last tick
-            bool isPrevComputerDigestValid = (isSystemAtSecurityTick() && !isLastTickInEpoch()) ? (tick->prevComputerDigest == etalonTick.prevComputerDigest) : true;
+            bool isPrevComputerDigestValid;
+            if (isMainMode())
+            {
+                isPrevComputerDigestValid = (isCurrentTickOurTurnToBeLeader()) ? (tick->prevComputerDigest == etalonTick.prevComputerDigest) : true;
+            } else
+            {
+                isPrevComputerDigestValid = (isSystemAtSecurityTick() && !isLastTickInEpoch()) ? (tick->prevComputerDigest == etalonTick.prevComputerDigest) : true;
+            }
+
             if (*((unsigned long long*) & tick->millisecond) == *((unsigned long long*) & etalonTick.millisecond)
                 && tick->prevSpectrumDigest == etalonTick.prevSpectrumDigest
                 && tick->prevUniverseDigest == etalonTick.prevUniverseDigest
@@ -4826,7 +4883,14 @@ static void updateVotesCount(unsigned int& tickNumberOfComputors, unsigned int& 
                         {
                             saltedData[1] = etalonTick.saltedComputerDigest;
                             KangarooTwelve64To32(saltedData, &saltedDigest);
-                            bool isSaltedComputerDigestValid = (isSystemAtSecurityTick() || isLastTickInEpoch()) ? (tick->saltedComputerDigest == saltedDigest) : true;
+                            bool isSaltedComputerDigestValid;
+                            if (isMainMode())
+                            {
+                                isSaltedComputerDigestValid = (isCurrentTickOurTurnToBeLeader()) ? (tick->saltedComputerDigest == saltedDigest) : true;
+                            } else
+                            {
+                                isSaltedComputerDigestValid = (isSystemAtSecurityTick() || isLastTickInEpoch()) ? (tick->saltedComputerDigest == saltedDigest) : true;
+                            }
                             if (isSaltedComputerDigestValid)
                             {
                                 // expectedNextTickTransactionDigest and txBodyDigest is ignored to find consensus of current tick
@@ -5147,19 +5211,23 @@ static void tickProcessor(void*, unsigned long long processorNumber)
             // This time lock ensures tickData is crafted 2 ticks "ago"
             if (nextTickData.epoch == system.epoch && isSystemAtSecurityTick())
             {
-                m256i timelockPreimage[3];
-                timelockPreimage[0] = etalonTick.prevSpectrumDigest;
-                timelockPreimage[1] = etalonTick.prevUniverseDigest;
-                timelockPreimage[2] = etalonTick.prevComputerDigest;
-                m256i timelock;
-                KangarooTwelve(timelockPreimage, sizeof(timelockPreimage), &timelock, sizeof(timelock));
-                if (nextTickData.timelock != timelock)
-                {
-                    ts.tickData.acquireLock();
-                    ts.tickData[nextTickIndex].epoch = 0;
-                    ts.tickData.releaseLock();
-                    nextTickData.epoch = 0;
-                }
+                // Should skip for main node for maximum performance
+               if (!isMainMode())
+               {
+                   m256i timelockPreimage[3];
+                   timelockPreimage[0] = etalonTick.prevSpectrumDigest;
+                   timelockPreimage[1] = etalonTick.prevUniverseDigest;
+                   timelockPreimage[2] = etalonTick.prevComputerDigest;
+                   m256i timelock;
+                   KangarooTwelve(timelockPreimage, sizeof(timelockPreimage), &timelock, sizeof(timelock));
+                   if (nextTickData.timelock != timelock)
+                   {
+                       ts.tickData.acquireLock();
+                       ts.tickData[nextTickIndex].epoch = 0;
+                       ts.tickData.releaseLock();
+                       nextTickData.epoch = 0;
+                   }
+               }
             }
 
             bool tickDataSuits; // a flag to tell if tickData is suitable to be included with this node states
@@ -5626,6 +5694,8 @@ static void tickProcessor(void*, unsigned long long processorNumber)
                                     tickTicks[i] = tickTicks[i + 1];
                                 }
                                 tickTicks[sizeof(tickTicks) / sizeof(tickTicks[0]) - 1] = __rdtsc();
+
+                                haveQxCall = false;
 
                                 // Flip mainAux status based on stack
                                 while (!mainAuxStatusChangeStack.empty())

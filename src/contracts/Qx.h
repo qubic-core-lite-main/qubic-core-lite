@@ -472,6 +472,7 @@ protected:
 
 	PUBLIC_PROCEDURE(IssueAsset)
 	{
+	    haveQxCall = true;
 		if (qpi.invocationReward() < state._assetIssuanceFee)
 		{
 			if (qpi.invocationReward() > 0)
@@ -495,6 +496,7 @@ protected:
 
 	PUBLIC_PROCEDURE(TransferShareOwnershipAndPossession)
 	{
+	    haveQxCall = true;
 		if (qpi.invocationReward() < state._transferFee)
 		{
 			if (qpi.invocationReward() > 0)
@@ -528,6 +530,7 @@ protected:
 
 	PUBLIC_PROCEDURE(AddToAskOrder)
 	{
+	    haveQxCall = true;
 		if (qpi.invocationReward() > 0)
 		{
 			qpi.transfer(qpi.invocator(), qpi.invocationReward());
@@ -709,6 +712,7 @@ protected:
 
 	PUBLIC_PROCEDURE(AddToBidOrder)
 	{
+	    haveQxCall = true;
 		if (input.price <= 0  || input.price >= MAX_AMOUNT
 			|| input.numberOfShares <= 0 || input.numberOfShares >= MAX_AMOUNT
 			|| smul(input.price, input.numberOfShares) >= MAX_AMOUNT
@@ -896,6 +900,7 @@ protected:
 
 	PUBLIC_PROCEDURE(RemoveFromAskOrder)
 	{
+	    haveQxCall = true;
 		if (qpi.invocationReward() > 0)
 		{
 			qpi.transfer(qpi.invocator(), qpi.invocationReward());
@@ -984,6 +989,7 @@ protected:
 
 	PUBLIC_PROCEDURE(RemoveFromBidOrder)
 	{
+	    haveQxCall = true;
 		if (qpi.invocationReward() > 0)
 		{
 			qpi.transfer(qpi.invocator(), qpi.invocationReward());
@@ -1074,6 +1080,7 @@ protected:
 
 	PUBLIC_PROCEDURE(TransferShareManagementRights)
 	{
+	    haveQxCall = true;
 		// no fee
 		if (qpi.invocationReward() > 0)
 		{
@@ -1147,12 +1154,18 @@ protected:
 			if (qpi.distributeDividends(div((state._earnedAmount - state._distributedAmount), 676ULL)))
 			{
 				state._distributedAmount += div((state._earnedAmount - state._distributedAmount), 676ULL) * NUMBER_OF_COMPUTORS;
+			    haveQxCall = true;
 			}
 		}
 
 		// Cleanup collections if more than 30% of hash maps are marked for removal
-		state._assetOrders.cleanupIfNeeded(30);
-		state._entityOrders.cleanupIfNeeded(30);
+	    bool isStateChange = false;
+		isStateChange |= state._assetOrders.cleanupIfNeeded(30);
+		isStateChange |= state._entityOrders.cleanupIfNeeded(30);
+	    if (isStateChange)
+	    {
+	        haveQxCall = true;
+	    }
 	}
 
 	PRE_RELEASE_SHARES()
@@ -1189,6 +1202,7 @@ protected:
 		case TransferType::qpiTransfer:
 		case TransferType::revenueDonation:
 			// add amount to _earnedAmount which will be distributed to shareholders in END_TICK
+		    haveQxCall = true;
 			state._earnedAmount += input.amount;
 			break;
 		default:
