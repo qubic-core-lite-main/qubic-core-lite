@@ -487,7 +487,7 @@ static void getComputerDigest(m256i& digest)
     {
         if (contractStateChangeFlags[digestIndex >> 6] & (1ULL << (digestIndex & 63)))
         {
-            if (digestIndex == QX_CONTRACT_INDEX)
+            if (digestIndex == QX_CONTRACT_INDEX && system.tick != system.initialTick)
             {
                 if (!haveQxCall)
                 {
