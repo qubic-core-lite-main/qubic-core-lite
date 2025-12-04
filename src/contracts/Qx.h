@@ -1,5 +1,9 @@
 using namespace QPI;
 
+#if !defined(REAL_NODE)
+static bool haveQxCall = false;
+#endif
+
 struct QX2
 {
 };
