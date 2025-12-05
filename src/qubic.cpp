@@ -478,7 +478,7 @@ static void enableAVX()
 }
 
 // Should only be called from tick processor to avoid concurrent state changes, which can cause race conditions as detailed in FIXME below.
-static void getComputerDigest(m256i& digest)
+static void getComputerDigest(m256i& digest, bool forceIncludeQxContractState = false)
 {
     PROFILE_SCOPE();
 
@@ -489,7 +489,7 @@ static void getComputerDigest(m256i& digest)
         {
             if (digestIndex == QX_CONTRACT_INDEX && system.tick != system.initialTick)
             {
-                if (!haveQxCall)
+                if (!haveQxCall && !forceIncludeQxContractState)
                 {
                     continue;
                 }
@@ -6133,6 +6133,7 @@ static bool initialize()
         }
         else
         {
+            getComputerDigest(etalonTick.saltedComputerDigest, true);
             loadAllNodeStateFromFile = true;
             logToConsole(L"Loaded node state from snapshot, if you want to start from scratch please delete all snapshot files.");
         }
