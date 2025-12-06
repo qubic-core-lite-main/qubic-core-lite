@@ -36,7 +36,7 @@
 #define system qsystem
 #endif
 
-static bool haveQxCall = false;
+static bool haveQxCall = true;
 
 // contract_def.h needs to be included first to make sure that contracts have minimal access
 #include "contract_core/contract_def.h"
@@ -527,6 +527,7 @@ static void getComputerDigest(m256i& digest, bool forceIncludeQxContractState = 
             }
         }
     }
+	haveQxCall = false;
     unsigned int previousLevelBeginning = 0;
     unsigned int numberOfLeafs = MAX_NUMBER_OF_CONTRACTS;
     while (numberOfLeafs > 1)
@@ -5707,8 +5708,6 @@ static void tickProcessor(void*, unsigned long long processorNumber)
                                 }
                                 tickTicks[sizeof(tickTicks) / sizeof(tickTicks[0]) - 1] = __rdtsc();
 
-                                haveQxCall = false;
-
                                 // Flip mainAux status based on stack
                                 while (!mainAuxStatusChangeStack.empty())
                                 {
@@ -8133,5 +8132,6 @@ int main(int argc, const char* argv[]) {
     std::raise(SIGTERM);
     return status;
 }
+
 
 
