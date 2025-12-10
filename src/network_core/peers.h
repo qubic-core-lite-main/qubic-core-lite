@@ -31,7 +31,7 @@
 #define NUMBER_OF_INCOMING_CONNECTIONS 4
 #else
 #define NUMBER_OF_OUTGOING_CONNECTIONS 8
-#define NUMBER_OF_INCOMING_CONNECTIONS 88
+#define NUMBER_OF_INCOMING_CONNECTIONS 176
 #endif
 #define MAX_NUMBER_OF_PUBLIC_PEERS 1024
 #define REQUEST_QUEUE_BUFFER_SIZE (1073741824 / NETWORK_QUEUEUE_REDUCED_TIME)
@@ -769,7 +769,7 @@ static void processReceivedData(unsigned int i, unsigned int salt)
                                     {
                                         _InterlockedIncrement64(&numberOfDiscardedRequests);
 
-                                        enqueueResponse(&peers[i], 0, TryAgain::type, requestResponseHeader->dejavu(), NULL);
+                                        enqueueResponse(&peers[i], 0, TryAgain::type(), requestResponseHeader->dejavu(), NULL);
                                     }
                                 }
                                 else
